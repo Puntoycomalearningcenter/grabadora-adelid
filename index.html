@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grabadora de Audio y Tutor AI | Práctica de Inglés</title>
+    <!-- Carga de Tailwind CSS para un diseño moderno y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Configuración de la fuente Inter y un fondo suave */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc; /* Gris muy claro */
+            min-height: 100vh;
+        }
+        /* Estilo para el botón de grabación (rojo cuando se está grabando) */
+        .recording-button {
+            transition: all 0.3s ease;
+        }
+        .recording-pulse {
+            animation: pulse-red 1.5s infinite;
+        }
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        /* Estilo para el indicador de carga */
+        .loader {
+            border-top-color: #3b82f6;
+            border-left-color: #3b82f6;
+            animation: spin 1s infinite linear;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4">
+    <div id="app" class="bg-white p-6 md:p-10 rounded-xl shadow-2xl w-full max-w-lg">
+        
+        <h1 class="text-3xl font-bold text-gray-900 mb-2 text-center">
+            🎤 Tutor de Inglés con Grabadora
+        </h1>
+        <p class="text-gray-500 mb-6 text-center">
+            Graba tu práctica, luego obtén la transcripción y el feedback de la IA.
+        </p>
+
+        <!-- Área de Control de Grabación -->
+        <div class="flex flex-col items-center space-y-4">
+            
+            <!-- Indicador de Estado y Tiempo -->
+            <div id="estado-grabacion" class="text-lg font-semibold h-6 text-center">
+                Listo para grabar
+            </div>
+            <div id="tiempo-grabado" class="text-4xl font-mono text-gray-700">
+                00:00:00
+            </div>
+
+            <!-- Controles (Botones) -->
+            <div class="flex space-x-4">
+                <button id="btn-grabar" class="recording-button bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-full shadow-lg transition duration-150 ease-in-out disabled:opacity-50">
+                    <span id="texto-grabar">Grabar</span>
+                </button>
+                
+                <button id="btn-detener" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-full shadow-lg transition duration-150 ease-in-out disabled:opacity-50" disabled>
+                    Detener
+                </button>
+            </div>
+        </div>
+
+        <!-- Área de Descarga y Análisis (Visible solo después de grabar) -->
+        <div id="area-post-grabacion" class="mt-8 pt-6 border-t border-gray-200 hidden flex flex-col items-center space-y-4">
+
+            <!-- Reproductor de Vista Previa -->
+            <p class="text-sm text-gray-500 mt-4">Previsualización:</p>
+            <audio id="audio-preview" controls class="w-full max-w-sm rounded-lg shadow"></audio>
+
+            <div class="flex flex-col md:flex-row space-y-3 md:space-y-0 md:space-x-3 w-full justify-center">
+                <!-- Botón de Descarga -->
+                <a id="link-descarga" class="inline-flex items-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-xl justify-center transition duration-150 ease-in-out">
+                    Descargar Audio (.mp3)
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L10 11.586l1.293-1.293a1 1 0 111.414 1.414l-2 2a1 1 0 01-1.414 0l-2-2a1 1 0 010-1.414z" clip-rule="evenodd" /><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v8a1 1 0 11-2 0V3a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                </a>
+                
+                <!-- Botón de Análisis con IA -->
+                <button id="btn-analizar" class="inline-flex items-center bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-xl justify-center transition duration-150 ease-in-out disabled:opacity-50">
+                    <span id="texto-analizar">Analizar Audio (IA)</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Área de Análisis (Resultados de Gemini) -->
+        <div id="area-analisis" class="mt-8 pt-6 border-t border-gray-200 hidden">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Resultados del Tutor AI</h2>
+            
+            <!-- Transcripción -->
+            <div class="bg-indigo-50 p-4 rounded-lg mb-4">
+                <h3 class="font-semibold text-indigo-700">1. Transcripción:</h3>
+                <p id="transcripcion-resultado" class="text-gray-800 italic mt-1 min-h-[20px]">
+                    <!-- Resultado de la IA -->
+                </p>
+            </div>
+
+            <!-- Feedback -->
+            <div class="bg-green-50 p-4 rounded-lg">
+                <h3 class="font-semibold text-green-700">2. Feedback Constructivo:</h3>
+                <div id="feedback-resultado" class="text-gray-800 mt-1 min-h-[20px] prose">
+                    <!-- Resultado de la IA -->
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Área de Mensajes de Error (Oculta por defecto) -->
+        <div id="area-mensajes" class="mt-4 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 hidden">
+            <p class="font-bold">Advertencia:</p>
+            <p id="mensaje-error"></p>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Constantes y Variables Globales ---
+        const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
+        const API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
+        const API_ENDPOINT = "generateContent";
+        const apiKey = ""; // La clave API es proporcionada por el entorno
+        
+        let mediaRecorder;
+        let lastAudioChunks = []; // Almacena los chunks de la última grabación
+        let stream;
+        let timerInterval;
+        let startTime;
+
+        // --- Referencias a Elementos del DOM ---
+        const btnGrabar = document.getElementById('btn-grabar');
+        const btnDetener = document.getElementById('btn-detener');
+        const btnAnalizar = document.getElementById('btn-analizar');
+        const linkDescarga = document.getElementById('link-descarga');
+        const audioPreview = document.getElementById('audio-preview');
+        const estadoGrabacion = document.getElementById('estado-grabacion');
+        const tiempoGrabado = document.getElementById('tiempo-grabado');
+        const areaPostGrabacion = document.getElementById('area-post-grabacion');
+        const areaAnalisis = document.getElementById('area-analisis');
+        const areaMensajes = document.getElementById('area-mensajes');
+        const mensajeError = document.getElementById('mensaje-error');
+        const textoGrabar = document.getElementById('texto-grabar');
+        const textoAnalizar = document.getElementById('texto-analizar');
+        const transcripcionResultado = document.getElementById('transcripcion-resultado');
+        const feedbackResultado = document.getElementById('feedback-resultado');
+
+
+        // --- Funciones de Utilidad ---
+
+        /**
+         * Muestra un mensaje de error o advertencia en la UI.
+         * @param {string} mensaje - El texto del mensaje.
+         */
+        function mostrarMensaje(mensaje) {
+            mensajeError.textContent = mensaje;
+            areaMensajes.classList.remove('hidden');
+        }
+
+        /**
+         * Reinicia el temporizador.
+         */
+        function resetTimer() {
+            clearInterval(timerInterval);
+            tiempoGrabado.textContent = '00:00:00';
+        }
+
+        /**
+         * Actualiza el temporizador de grabación.
+         */
+        function actualizarTiempo() {
+            const elapsedTime = new Date() - startTime;
+            const totalSeconds = Math.floor(elapsedTime / 1000);
+            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const seconds = String(totalSeconds % 60).padStart(2, '0');
+            tiempoGrabado.textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        /**
+         * Convierte un Blob de audio a una cadena Base64.
+         * Necesario para enviar el audio a la API de Gemini.
+         * @param {Blob} blob - El objeto Blob de audio.
+         * @returns {Promise<string>} La cadena Base64 del audio.
+         */
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    // El resultado es 'data:audio/webm;base64,...'
+                    // Solo necesitamos la parte base64 después de la coma.
+                    const base64String = reader.result.split(',')[1];
+                    resolve(base64String);
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        // --- Lógica de Grabación ---
+
+        /**
+         * Inicializa y comienza la grabación.
+         */
+        async function iniciarGrabacion() {
+            // Ocultar mensajes previos y áreas
+            areaPostGrabacion.classList.add('hidden');
+            areaAnalisis.classList.add('hidden');
+            areaMensajes.classList.add('hidden');
+            lastAudioChunks = []; // Limpiar chunks anteriores
+            resetTimer();
+            transcripcionResultado.textContent = '';
+            feedbackResultado.innerHTML = '';
+
+            try {
+                // 1. Solicitar acceso al micrófono
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // 2. Crear MediaRecorder
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+                // 3. Manejar datos disponibles (chunks de audio)
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        lastAudioChunks.push(event.data);
+                    }
+                };
+
+                // 4. Manejar el fin de la grabación
+                mediaRecorder.onstop = () => {
+                    finalizarGrabacion();
+                };
+
+                // 5. Iniciar la grabación
+                mediaRecorder.start();
+
+                // 6. Actualizar UI y temporizador
+                btnGrabar.disabled = true;
+                btnDetener.disabled = false;
+                
+                // Efecto visual de grabación
+                btnGrabar.classList.add('recording-pulse');
+                btnGrabar.classList.remove('bg-red-500', 'hover:bg-red-600');
+                btnGrabar.classList.add('bg-red-700');
+                textoGrabar.textContent = 'Grabando...';
+                
+                estadoGrabacion.textContent = 'Grabando...';
+                estadoGrabacion.classList.add('text-red-600');
+                
+                startTime = new Date();
+                timerInterval = setInterval(actualizarTiempo, 1000);
+
+            } catch (error) {
+                console.error("Error al acceder al micrófono:", error);
+                mostrarMensaje('No se pudo acceder al micrófono. Asegúrate de dar permiso: ' + error.name);
+                btnGrabar.disabled = false;
+                btnDetener.disabled = true;
+            }
+        }
+
+        /**
+         * Detiene la grabación y genera el archivo.
+         */
+        function detenerGrabacion() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+
+            // Detener el streaming del micrófono para liberar el recurso
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+
+            // Limpiar el temporizador inmediatamente
+            clearInterval(timerInterval);
+            
+            // Restablecer el estado del botón de grabar
+            btnGrabar.disabled = false;
+            btnDetener.disabled = true;
+            btnAnalizar.disabled = false; // Habilitar el botón de análisis
+            
+            btnGrabar.classList.remove('recording-pulse');
+            btnGrabar.classList.remove('bg-red-700');
+            btnGrabar.classList.add('bg-red-500', 'hover:bg-red-600');
+            textoGrabar.textContent = 'Grabar de nuevo';
+            
+            estadoGrabacion.textContent = 'Grabación completada';
+            estadoGrabacion.classList.remove('text-red-600');
+        }
+        
+        /**
+         * Finaliza la grabación: crea el blob y el enlace de descarga.
+         */
+        function finalizarGrabacion() {
+            if (lastAudioChunks.length === 0) {
+                 mostrarMensaje('No se grabó audio.');
+                 return;
+            }
+
+            // 1. Crear el objeto Blob a partir de los chunks grabados
+            const blob = new Blob(lastAudioChunks, { type: 'audio/webm' });
+
+            // 2. Crear una URL local temporal para el Blob
+            const audioURL = URL.createObjectURL(blob);
+
+            // 3. Configurar la vista previa del audio
+            audioPreview.src = audioURL;
+
+            // 4. Configurar el enlace de descarga
+            linkDescarga.href = audioURL;
+            
+            const timestamp = new Date().toISOString().replace(/:/g, "-").slice(0, 19);
+            linkDescarga.download = `grabacion_${timestamp}.mp3`; 
+            
+            // 5. Mostrar el área de post-grabación (descarga y análisis)
+            areaPostGrabacion.classList.remove('hidden');
+        }
+
+
+        // --- Lógica de Análisis con Gemini API ---
+
+        /**
+         * Inicia el proceso de análisis del audio con Gemini.
+         */
+        async function analizarAudio() {
+            if (lastAudioChunks.length === 0) {
+                 mostrarMensaje('Por favor, graba un audio antes de analizar.');
+                 return;
+            }
+
+            // Limpiar resultados anteriores y preparar la UI
+            areaAnalisis.classList.remove('hidden');
+            transcripcionResultado.textContent = 'Analizando...';
+            feedbackResultado.innerHTML = `<span class="loader border-4 border-gray-200 border-t-4 rounded-full w-5 h-5 inline-block mr-2"></span> Buscando feedback de la IA...`;
+            btnAnalizar.disabled = true;
+            textoAnalizar.textContent = 'Analizando...';
+            areaMensajes.classList.add('hidden');
+            
+            try {
+                // 1. Convertir chunks de audio a Base64
+                const blob = new Blob(lastAudioChunks, { type: 'audio/webm' });
+                const base64Audio = await blobToBase64(blob);
+
+                // 2. Definir el prompt y la configuración
+                const systemPrompt = "Eres un tutor de inglés y un transcriptor experto. Tu tarea es analizar el audio proporcionado (que es una práctica de inglés del estudiante). Debes realizar dos tareas y devolver los resultados en español:\n1. Transcripción: Proporciona la transcripción del texto hablado en inglés. (Mantenlo breve y directo)\n2. Feedback: Proporciona un breve feedback constructivo sobre la fluidez, la pronunciación y la gramática. Sugiere una manera alternativa y más natural de decir la idea principal.";
+                const userQuery = "Transcribe el audio y proporciona feedback constructivo para ayudar al estudiante a mejorar su inglés.";
+
+                const payload = {
+                    contents: [
+                        {
+                            role: "user",
+                            parts: [
+                                { text: userQuery },
+                                {
+                                    inlineData: {
+                                        mimeType: "audio/webm",
+                                        data: base64Audio
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    systemInstruction: {
+                        parts: [{ text: systemPrompt }]
+                    },
+                };
+
+                const apiUrl = `${API_BASE_URL}${MODEL_NAME}:${API_ENDPOINT}?key=${apiKey}`;
+
+                let response;
+                let success = false;
+                const maxRetries = 3;
+
+                // Implementación de Backoff Exponencial
+                for (let i = 0; i < maxRetries; i++) {
+                    try {
+                        response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (response.ok) {
+                            success = true;
+                            break;
+                        } else if (response.status === 429) {
+                            // Demasiadas peticiones, esperar y reintentar
+                            const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                        } else {
+                            // Otro error, salir del bucle
+                            break;
+                        }
+                    } catch (error) {
+                        // Error de red, esperar y reintentar
+                        const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
+                }
+
+                if (!success || !response.ok) {
+                    throw new Error(`Error en la API después de ${maxRetries} intentos: ${response ? response.statusText : 'Error de red'}`);
+                }
+
+                const result = await response.json();
+                const textResult = result.candidates?.[0]?.content?.parts?.[0]?.text || "No se pudo obtener el resultado de la IA.";
+
+                // 3. Procesar y mostrar el resultado
+                // El resultado viene en un solo bloque, vamos a separarlo por los encabezados que pedimos.
+                const transcriptionMatch = textResult.match(/1\. Transcripción:\s*([\s\S]*?)2\. Feedback:/i);
+                const feedbackMatch = textResult.match(/2\. Feedback:\s*([\s\S]*)/i);
+
+                if (transcriptionMatch && feedbackMatch) {
+                    transcripcionResultado.textContent = transcriptionMatch[1].trim();
+                    // Usamos .innerHTML para permitir que la IA use formato Markdown (negritas, listas, etc.)
+                    feedbackResultado.innerHTML = feedbackMatch[1].trim();
+                } else {
+                    // Si el formato no coincide, mostramos el texto completo
+                    transcripcionResultado.textContent = "Error al analizar el formato. Resultado completo:";
+                    feedbackResultado.innerHTML = textResult;
+                }
+
+            } catch (error) {
+                console.error("Error en el análisis de audio:", error);
+                mostrarMensaje('Hubo un error al conectar con el Tutor AI. Inténtalo de nuevo. Detalle: ' + error.message);
+                transcripcionResultado.textContent = 'Error de procesamiento.';
+                feedbackResultado.innerHTML = '';
+
+            } finally {
+                // Restaurar UI
+                btnAnalizar.disabled = false;
+                textoAnalizar.textContent = 'Analizar Audio (IA)';
+            }
+        }
+
+
+        // --- Event Listeners ---
+        window.onload = () => {
+            // Evento para iniciar la grabación
+            btnGrabar.addEventListener('click', iniciarGrabacion);
+
+            // Evento para detener la grabación
+            btnDetener.addEventListener('click', detenerGrabacion);
+
+            // Nuevo evento para analizar con Gemini
+            btnAnalizar.addEventListener('click', analizarAudio);
+        };
+        
+    </script>
+</body>
+</html>
